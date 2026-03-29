@@ -1,0 +1,9 @@
+{
+  "id": "translator-for-obsidian",
+  "name": "Translator For Obsidian",
+  "version": "0.1.11",
+  "minAppVersion": "1.5.0",
+  "description": "Translate selected text in Obsidian with a hover orb and draggable popup.",
+  "author": "OpenAI Codex",
+  "isDesktopOnly": true
+}

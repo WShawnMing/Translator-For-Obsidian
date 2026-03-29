@@ -1,0 +1,516 @@
+.obsidian-translator-orb {
+  position: fixed;
+  z-index: 9999;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background-color: var(--translator-orb-color, #0a84ff) !important;
+  background-image: none !important;
+  box-shadow: 0 0 0 4px var(--translator-orb-halo, rgba(10, 132, 255, 0.16));
+  cursor: pointer;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.75);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    box-shadow 160ms ease;
+  pointer-events: none;
+}
+
+.obsidian-translator-orb.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  pointer-events: auto;
+}
+
+.obsidian-translator-orb:hover {
+  box-shadow: 0 0 0 6px var(--translator-orb-halo-hover, rgba(10, 132, 255, 0.28));
+}
+
+.obsidian-translator-panel {
+  position: fixed;
+  z-index: 10000;
+  width: min(420px, calc(100vw - 24px));
+  min-height: 140px;
+  display: none;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, white 28%);
+  background: color-mix(in srgb, var(--background-primary) 94%, white 6%);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14);
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+}
+
+.obsidian-translator-panel.is-visible {
+  display: block;
+}
+
+.obsidian-translator-panel.is-pinned {
+  box-shadow:
+    0 18px 48px rgba(15, 23, 42, 0.16),
+    0 0 0 1px var(--translator-pin-ring, rgba(255, 189, 46, 0.3));
+}
+
+.obsidian-translator-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 8px;
+  cursor: grab;
+  user-select: none;
+}
+
+.obsidian-translator-panel__header:active {
+  cursor: grabbing;
+}
+
+.obsidian-translator-panel__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.obsidian-translator-panel__meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.obsidian-translator-panel__control {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  appearance: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  opacity: 0.92;
+  color: rgba(0, 0, 0, 0.62);
+  background-image: none !important;
+}
+
+.obsidian-translator-panel__control:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+.obsidian-translator-panel__control--close {
+  background-color: var(--translator-close-color, #ff5f57) !important;
+  color: var(--translator-close-icon-color, rgba(0, 0, 0, 0.72)) !important;
+}
+
+.obsidian-translator-panel__control--pin {
+  background-color: var(--translator-pin-color, #ffbd2e) !important;
+  color: var(--translator-pin-icon-color, rgba(0, 0, 0, 0.72)) !important;
+}
+
+.obsidian-translator-panel__control--copy {
+  background-color: var(--translator-copy-color, #28c840) !important;
+  color: var(--translator-copy-icon-color, rgba(0, 0, 0, 0.72)) !important;
+}
+
+.obsidian-translator-panel__control svg.svg-icon {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.4px;
+}
+
+.obsidian-translator-panel__control--pin.is-active {
+  box-shadow: 0 0 0 3px var(--translator-pin-ring, rgba(255, 189, 46, 0.3));
+}
+
+.obsidian-translator-panel__model {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 42%;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background-secondary) 78%, white 22%);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obsidian-translator-panel__mode-select {
+  max-width: 260px;
+  min-height: 30px;
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background-secondary) 78%, white 22%);
+  color: var(--text-normal);
+  font-size: 12px;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
+.obsidian-translator-panel__mode-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 28%, transparent 72%);
+}
+
+.obsidian-translator-panel__body {
+  padding: 2px 16px 16px;
+}
+
+.obsidian-translator-panel__status {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.obsidian-translator-panel__content {
+  margin: 0;
+  color: var(--text-normal);
+  font-size: 18px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.obsidian-translator-panel.is-loading .obsidian-translator-panel__content,
+.obsidian-translator-panel.is-error .obsidian-translator-panel__content {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.obsidian-translator-panel.is-loading .obsidian-translator-panel__content {
+  color: var(--text-muted);
+}
+
+.obsidian-translator-panel.is-error .obsidian-translator-panel__content {
+  color: var(--text-error);
+}
+
+.obsidian-translator-panel__debug {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-translator-panel__debug summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.obsidian-translator-panel__debug-pre {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.translator-for-obsidian-settings {
+  padding: 8px 0 32px;
+}
+
+.translator-for-obsidian-settings__intro {
+  margin: 0 0 24px;
+  padding: 2px 4px 0;
+}
+
+.translator-for-obsidian-settings__intro h2 {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 34px);
+  line-height: 1.1;
+}
+
+.translator-for-obsidian-settings__intro p {
+  max-width: 720px;
+  margin: 10px 0 0 10px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.translator-for-obsidian-settings__section {
+  margin-top: 24px;
+}
+
+.translator-for-obsidian-settings__section-header {
+  padding: 0 6px;
+}
+
+.translator-for-obsidian-settings__section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.translator-for-obsidian-settings__section-description {
+  max-width: 720px;
+  margin: 6px 0 12px 10px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.translator-for-obsidian-settings__group {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 78%, white 22%);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--background-primary) 94%, var(--background-secondary) 6%);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+}
+
+.translator-for-obsidian-settings .setting-item {
+  margin: 0 24px;
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 82%, transparent 18%);
+  background: transparent;
+  border-radius: 0;
+}
+
+.translator-for-obsidian-settings .setting-item:first-child {
+  padding-top: 22px;
+}
+
+.translator-for-obsidian-settings .setting-item:last-child {
+  padding-bottom: 22px;
+  border-bottom: 0;
+}
+
+.translator-for-obsidian-settings .setting-item-info {
+  padding-right: 20px;
+}
+
+.translator-for-obsidian-settings .setting-item-name {
+  margin-bottom: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.translator-for-obsidian-settings .setting-item-description {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.translator-for-obsidian-settings .setting-item-control {
+  min-width: 280px;
+  flex: 1 0 min(560px, 54%);
+  justify-content: flex-end;
+}
+
+.translator-for-obsidian-settings .setting-item-control input[type="text"],
+.translator-for-obsidian-settings .setting-item-control input[type="password"],
+.translator-for-obsidian-settings .setting-item-control textarea,
+.translator-for-obsidian-settings .setting-item-control select {
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border-radius: 14px;
+  line-height: 1.5;
+}
+
+.translator-for-obsidian-settings .setting-item-control select {
+  min-height: 50px;
+  height: 50px;
+  padding: 0 42px 0 14px;
+  font-size: 15px;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.translator-for-obsidian-settings .setting-item-control textarea {
+  min-height: 118px;
+  resize: vertical;
+}
+
+.translator-for-obsidian-settings .setting-item-control button {
+  margin-left: 8px;
+}
+
+.translator-for-obsidian-settings__mode-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 24px;
+  padding: 22px 0 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 82%, transparent 18%);
+}
+
+.translator-for-obsidian-settings__mode-toolbar-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.translator-for-obsidian-settings__mode-toolbar-copy p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.translator-for-obsidian-settings__mode-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.translator-for-obsidian-settings__mode-picker {
+  width: min(360px, 100%);
+  min-height: 46px;
+  height: 46px;
+  padding: 0 40px 0 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.translator-for-obsidian-settings__mode-editor {
+  padding: 18px 24px 24px;
+}
+
+.translator-for-obsidian-settings__mode-card {
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 78%, white 22%);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--background-primary) 92%, white 8%);
+}
+
+.translator-for-obsidian-settings__mode-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.translator-for-obsidian-settings__mode-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.translator-for-obsidian-settings__mode-card-title h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.translator-for-obsidian-settings__mode-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.translator-for-obsidian-settings__mode-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background-secondary) 84%, white 16%);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.translator-for-obsidian-settings__mode-field {
+  margin-top: 12px;
+}
+
+.translator-for-obsidian-settings__mode-field:first-of-type {
+  margin-top: 0;
+}
+
+.translator-for-obsidian-settings__mode-field-meta {
+  margin-bottom: 6px;
+}
+
+.translator-for-obsidian-settings__mode-field-label {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.translator-for-obsidian-settings__mode-field-description {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.translator-for-obsidian-settings__mode-field-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border-radius: 14px;
+  line-height: 1.6;
+}
+
+.translator-for-obsidian-settings__mode-field textarea.translator-for-obsidian-settings__mode-field-input,
+.translator-for-obsidian-settings__mode-field-input[type="text"] {
+  resize: vertical;
+}
+
+@media (max-width: 900px) {
+  .translator-for-obsidian-settings .setting-item {
+    margin: 0 18px;
+  }
+
+  .translator-for-obsidian-settings .setting-item-control {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-top: 14px;
+    justify-content: flex-start;
+  }
+
+  .translator-for-obsidian-settings .setting-item-control input[type="text"],
+  .translator-for-obsidian-settings .setting-item-control input[type="password"],
+  .translator-for-obsidian-settings .setting-item-control textarea,
+  .translator-for-obsidian-settings .setting-item-control select {
+    width: 100%;
+  }
+
+  .translator-for-obsidian-settings__mode-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0 18px;
+  }
+
+  .translator-for-obsidian-settings__mode-toolbar-controls {
+    width: 100%;
+  }
+
+  .translator-for-obsidian-settings__mode-picker {
+    width: 100%;
+  }
+
+  .translator-for-obsidian-settings__mode-editor {
+    padding: 18px;
+  }
+
+  .translator-for-obsidian-settings__mode-card-header {
+    flex-direction: column;
+  }
+}
