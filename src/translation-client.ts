@@ -8,6 +8,8 @@ interface ChatMessage {
   content: string;
 }
 
+type MessageStrategy = "system-user" | "user-only";
+
 interface ChatCompletionChoice {
   message?: {
     content?: string | Array<{ type?: string; text?: string }>;
@@ -20,6 +22,20 @@ interface ChatCompletionResponse {
   error?: {
     message?: string;
   };
+}
+
+interface ChatCompletionRequest {
+  model: string;
+  stream: boolean;
+  temperature: number;
+  messages: ChatMessage[];
+}
+
+interface ChatRequestResult {
+  status: number;
+  text: string;
+  json?: ChatCompletionResponse;
+  headers: Record<string, string>;
 }
 
 export class TranslationClient {
@@ -48,55 +64,30 @@ export class TranslationClient {
     }
 
     const url = normalizeChatCompletionsUrl(settings.baseUrl);
-    const payload = {
-      model: settings.model.trim(),
-      stream: false,
-      temperature: 0.2,
-      messages: buildMessages(trimmedText, settings, context)
-    };
     const startedAt = new Date().toISOString();
     const startedMs = Date.now();
-    const baseDebugInfo: TranslationDebugInfo = {
-      timing: {
-        startedAt,
-        durationMs: 0
-      },
-      request: {
-        url,
-        method: "POST",
-        configuredModel: settings.model.trim(),
-        translationMode: translationMode.id,
-        targetLanguage: settings.targetLanguage.trim() || "中文",
-        context: filteredContext,
-        body: sanitizeBody(payload)
-      }
-    };
-
+    let messageStrategy: MessageStrategy = "system-user";
+    let fallbackReason: string | undefined;
+    let payload = buildRequestPayload(trimmedText, settings, context, messageStrategy);
     let responseText = "";
 
     try {
-      const response = await withTimeout(
-        requestUrl({
-          url,
-          method: "POST",
-          throw: false,
-          contentType: "application/json",
-          headers: {
-            Authorization: `Bearer ${settings.apiKey.trim()}`
-          },
-          body: JSON.stringify(payload)
-        }),
-        settings.requestTimeoutMs,
-        `Translation request timed out after ${settings.requestTimeoutMs}ms.`
-      );
+      let response = await sendChatRequest(url, payload, settings);
+      responseText = response.text;
 
-      responseText = response.text ?? "";
+      if (shouldRetryWithoutSystemRole(response)) {
+        fallbackReason =
+          extractErrorMessage(response.json, response.text) || "Provider rejected the system role.";
+        messageStrategy = "user-only";
+        payload = buildRequestPayload(trimmedText, settings, context, messageStrategy);
+        response = await sendChatRequest(url, payload, settings);
+        responseText = response.text;
+      }
+
       const status = response.status;
-      const responseJson = (response.json ?? parseJson<ChatCompletionResponse>(responseText)) as
-        | ChatCompletionResponse
-        | undefined;
+      const responseJson = response.json;
       const debugInfo: TranslationDebugInfo = {
-        ...baseDebugInfo,
+        ...buildBaseDebugInfo(url, settings, translationMode.id, filteredContext, payload, messageStrategy, fallbackReason),
         timing: {
           startedAt,
           durationMs: Date.now() - startedMs
@@ -104,7 +95,7 @@ export class TranslationClient {
         response: {
           status,
           model: responseJson?.model?.trim() || settings.model.trim(),
-          headers: response.headers ?? {},
+          headers: response.headers,
           textPreview: summarizeText(responseText),
           json: responseJson
         }
@@ -132,7 +123,7 @@ export class TranslationClient {
 
       const message = error instanceof Error ? error.message : "Translation request failed.";
       throw new TranslationError(message, {
-        ...baseDebugInfo,
+        ...buildBaseDebugInfo(url, settings, translationMode.id, filteredContext, payload, messageStrategy, fallbackReason),
         timing: {
           startedAt,
           durationMs: Date.now() - startedMs
@@ -182,17 +173,95 @@ function normalizeChatCompletionsUrl(baseUrl: string): string {
   return `${trimmed}/chat/completions`;
 }
 
-function buildMessages(text: string, settings: TranslatorPluginSettings, context?: TranslationContext): ChatMessage[] {
-  const mode = getTranslationMode(settings.translationModes, settings.translationMode);
-  const systemPrompt = `You are ${mode.label}.
-${mode.systemPrompt}
-Detect the source language automatically and translate only the selected text into ${settings.targetLanguage.trim() || "中文"}.
-You may use any contextual metadata that is provided only to disambiguate terminology, references, omitted subjects, and tone.
-Never translate the surrounding context itself unless it is part of the selected text.
-Preserve Markdown links, inline code, citations, equations, bullet structure, and paragraph breaks when possible.
-Return only the translated selected text. Do not add explanations, labels, or surrounding commentary.`;
+function buildRequestPayload(
+  text: string,
+  settings: TranslatorPluginSettings,
+  context: TranslationContext | undefined,
+  messageStrategy: MessageStrategy
+): ChatCompletionRequest {
+  return {
+    model: settings.model.trim(),
+    stream: false,
+    temperature: 0.2,
+    messages: buildMessages(text, settings, context, messageStrategy)
+  };
+}
 
+async function sendChatRequest(
+  url: string,
+  payload: ChatCompletionRequest,
+  settings: TranslatorPluginSettings
+): Promise<ChatRequestResult> {
+  const response = await withTimeout(
+    requestUrl({
+      url,
+      method: "POST",
+      throw: false,
+      contentType: "application/json",
+      headers: {
+        Authorization: `Bearer ${settings.apiKey.trim()}`
+      },
+      body: JSON.stringify(payload)
+    }),
+    settings.requestTimeoutMs,
+    `Translation request timed out after ${settings.requestTimeoutMs}ms.`
+  );
+
+  const responseText = response.text ?? "";
+
+  return {
+    status: response.status,
+    text: responseText,
+    json: (response.json ?? parseJson<ChatCompletionResponse>(responseText)) as ChatCompletionResponse | undefined,
+    headers: (response.headers ?? {}) as Record<string, string>
+  };
+}
+
+function buildBaseDebugInfo(
+  url: string,
+  settings: TranslatorPluginSettings,
+  translationModeId: string,
+  filteredContext: TranslationContext | undefined,
+  payload: ChatCompletionRequest,
+  messageStrategy: MessageStrategy,
+  fallbackReason?: string
+): TranslationDebugInfo {
+  return {
+    timing: {
+      startedAt: "",
+      durationMs: 0
+    },
+    request: {
+      url,
+      method: "POST",
+      configuredModel: settings.model.trim(),
+      translationMode: translationModeId,
+      targetLanguage: settings.targetLanguage.trim() || "中文",
+      context: filteredContext,
+      messageStrategy,
+      fallbackReason,
+      body: sanitizeBody(payload as unknown as Record<string, unknown>)
+    }
+  };
+}
+
+function buildMessages(
+  text: string,
+  settings: TranslatorPluginSettings,
+  context: TranslationContext | undefined,
+  messageStrategy: MessageStrategy
+): ChatMessage[] {
+  const systemPrompt = buildSystemPrompt(settings);
   const userContent = buildUserMessage(text, resolveTranslationContext(context, settings));
+
+  if (messageStrategy === "user-only") {
+    return [
+      {
+        role: "user",
+        content: `[Translation instructions]\n${systemPrompt}\n\n${userContent}`
+      }
+    ];
+  }
 
   return [
     {
@@ -204,6 +273,17 @@ Return only the translated selected text. Do not add explanations, labels, or su
       content: userContent
     }
   ];
+}
+
+function buildSystemPrompt(settings: TranslatorPluginSettings): string {
+  const mode = getTranslationMode(settings.translationModes, settings.translationMode);
+  return `You are ${mode.label}.
+${mode.systemPrompt}
+Detect the source language automatically and translate only the selected text into ${settings.targetLanguage.trim() || "中文"}.
+You may use any contextual metadata that is provided only to disambiguate terminology, references, omitted subjects, and tone.
+Never translate the surrounding context itself unless it is part of the selected text.
+Preserve Markdown links, inline code, citations, equations, bullet structure, and paragraph breaks when possible.
+Return only the translated selected text. Do not add explanations, labels, or surrounding commentary.`;
 }
 
 function buildUserMessage(text: string, context?: TranslationContext): string {
@@ -291,6 +371,25 @@ function parseJson<T>(text: string): T | undefined {
   } catch {
     return undefined;
   }
+}
+
+function extractErrorMessage(responseJson: ChatCompletionResponse | undefined, responseText: string): string {
+  return responseJson?.error?.message?.trim() || summarizeText(responseText, 200);
+}
+
+function shouldRetryWithoutSystemRole(response: ChatRequestResult): boolean {
+  if (response.status < 400) {
+    return false;
+  }
+
+  const message = extractErrorMessage(response.json, response.text).toLowerCase();
+  return (
+    message.includes("role must be in [user,assistant]") ||
+    (message.includes("role") && message.includes("[user,assistant]")) ||
+    message.includes("system role") ||
+    message.includes("role 'system'") ||
+    message.includes('role "system"')
+  );
 }
 
 function sanitizeBody(payload: Record<string, unknown>): Record<string, unknown> {

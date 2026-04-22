@@ -1174,50 +1174,26 @@ var TranslationClient = class {
       throw new Error("Please set the model name.");
     }
     const url = normalizeChatCompletionsUrl(settings.baseUrl);
-    const payload = {
-      model: settings.model.trim(),
-      stream: false,
-      temperature: 0.2,
-      messages: buildMessages(trimmedText, settings, context)
-    };
     const startedAt = (/* @__PURE__ */ new Date()).toISOString();
     const startedMs = Date.now();
-    const baseDebugInfo = {
-      timing: {
-        startedAt,
-        durationMs: 0
-      },
-      request: {
-        url,
-        method: "POST",
-        configuredModel: settings.model.trim(),
-        translationMode: translationMode.id,
-        targetLanguage: settings.targetLanguage.trim() || "\u4E2D\u6587",
-        context: filteredContext,
-        body: sanitizeBody(payload)
-      }
-    };
+    let messageStrategy = "system-user";
+    let fallbackReason;
+    let payload = buildRequestPayload(trimmedText, settings, context, messageStrategy);
     let responseText = "";
     try {
-      const response = await withTimeout(
-        (0, import_obsidian3.requestUrl)({
-          url,
-          method: "POST",
-          throw: false,
-          contentType: "application/json",
-          headers: {
-            Authorization: `Bearer ${settings.apiKey.trim()}`
-          },
-          body: JSON.stringify(payload)
-        }),
-        settings.requestTimeoutMs,
-        `Translation request timed out after ${settings.requestTimeoutMs}ms.`
-      );
-      responseText = response.text ?? "";
+      let response = await sendChatRequest(url, payload, settings);
+      responseText = response.text;
+      if (shouldRetryWithoutSystemRole(response)) {
+        fallbackReason = extractErrorMessage(response.json, response.text) || "Provider rejected the system role.";
+        messageStrategy = "user-only";
+        payload = buildRequestPayload(trimmedText, settings, context, messageStrategy);
+        response = await sendChatRequest(url, payload, settings);
+        responseText = response.text;
+      }
       const status = response.status;
-      const responseJson = response.json ?? parseJson(responseText);
+      const responseJson = response.json;
       const debugInfo = {
-        ...baseDebugInfo,
+        ...buildBaseDebugInfo(url, settings, translationMode.id, filteredContext, payload, messageStrategy, fallbackReason),
         timing: {
           startedAt,
           durationMs: Date.now() - startedMs
@@ -1225,7 +1201,7 @@ var TranslationClient = class {
         response: {
           status,
           model: responseJson?.model?.trim() || settings.model.trim(),
-          headers: response.headers ?? {},
+          headers: response.headers,
           textPreview: summarizeText(responseText),
           json: responseJson
         }
@@ -1249,7 +1225,7 @@ var TranslationClient = class {
       }
       const message = error instanceof Error ? error.message : "Translation request failed.";
       throw new TranslationError(message, {
-        ...baseDebugInfo,
+        ...buildBaseDebugInfo(url, settings, translationMode.id, filteredContext, payload, messageStrategy, fallbackReason),
         timing: {
           startedAt,
           durationMs: Date.now() - startedMs
@@ -1289,16 +1265,70 @@ function normalizeChatCompletionsUrl(baseUrl) {
   }
   return `${trimmed}/chat/completions`;
 }
-function buildMessages(text, settings, context) {
-  const mode = getTranslationMode(settings.translationModes, settings.translationMode);
-  const systemPrompt = `You are ${mode.label}.
-${mode.systemPrompt}
-Detect the source language automatically and translate only the selected text into ${settings.targetLanguage.trim() || "\u4E2D\u6587"}.
-You may use any contextual metadata that is provided only to disambiguate terminology, references, omitted subjects, and tone.
-Never translate the surrounding context itself unless it is part of the selected text.
-Preserve Markdown links, inline code, citations, equations, bullet structure, and paragraph breaks when possible.
-Return only the translated selected text. Do not add explanations, labels, or surrounding commentary.`;
+function buildRequestPayload(text, settings, context, messageStrategy) {
+  return {
+    model: settings.model.trim(),
+    stream: false,
+    temperature: 0.2,
+    messages: buildMessages(text, settings, context, messageStrategy)
+  };
+}
+async function sendChatRequest(url, payload, settings) {
+  const response = await withTimeout(
+    (0, import_obsidian3.requestUrl)({
+      url,
+      method: "POST",
+      throw: false,
+      contentType: "application/json",
+      headers: {
+        Authorization: `Bearer ${settings.apiKey.trim()}`
+      },
+      body: JSON.stringify(payload)
+    }),
+    settings.requestTimeoutMs,
+    `Translation request timed out after ${settings.requestTimeoutMs}ms.`
+  );
+  const responseText = response.text ?? "";
+  return {
+    status: response.status,
+    text: responseText,
+    json: response.json ?? parseJson(responseText),
+    headers: response.headers ?? {}
+  };
+}
+function buildBaseDebugInfo(url, settings, translationModeId, filteredContext, payload, messageStrategy, fallbackReason) {
+  return {
+    timing: {
+      startedAt: "",
+      durationMs: 0
+    },
+    request: {
+      url,
+      method: "POST",
+      configuredModel: settings.model.trim(),
+      translationMode: translationModeId,
+      targetLanguage: settings.targetLanguage.trim() || "\u4E2D\u6587",
+      context: filteredContext,
+      messageStrategy,
+      fallbackReason,
+      body: sanitizeBody(payload)
+    }
+  };
+}
+function buildMessages(text, settings, context, messageStrategy) {
+  const systemPrompt = buildSystemPrompt(settings);
   const userContent = buildUserMessage(text, resolveTranslationContext(context, settings));
+  if (messageStrategy === "user-only") {
+    return [
+      {
+        role: "user",
+        content: `[Translation instructions]
+${systemPrompt}
+
+${userContent}`
+      }
+    ];
+  }
   return [
     {
       role: "system",
@@ -1309,6 +1339,16 @@ Return only the translated selected text. Do not add explanations, labels, or su
       content: userContent
     }
   ];
+}
+function buildSystemPrompt(settings) {
+  const mode = getTranslationMode(settings.translationModes, settings.translationMode);
+  return `You are ${mode.label}.
+${mode.systemPrompt}
+Detect the source language automatically and translate only the selected text into ${settings.targetLanguage.trim() || "\u4E2D\u6587"}.
+You may use any contextual metadata that is provided only to disambiguate terminology, references, omitted subjects, and tone.
+Never translate the surrounding context itself unless it is part of the selected text.
+Preserve Markdown links, inline code, citations, equations, bullet structure, and paragraph breaks when possible.
+Return only the translated selected text. Do not add explanations, labels, or surrounding commentary.`;
 }
 function buildUserMessage(text, context) {
   const parts = [`[Selected text]
@@ -1374,6 +1414,16 @@ function parseJson(text) {
   } catch {
     return void 0;
   }
+}
+function extractErrorMessage(responseJson, responseText) {
+  return responseJson?.error?.message?.trim() || summarizeText(responseText, 200);
+}
+function shouldRetryWithoutSystemRole(response) {
+  if (response.status < 400) {
+    return false;
+  }
+  const message = extractErrorMessage(response.json, response.text).toLowerCase();
+  return message.includes("role must be in [user,assistant]") || message.includes("role") && message.includes("[user,assistant]") || message.includes("system role") || message.includes("role 'system'") || message.includes('role "system"');
 }
 function sanitizeBody(payload) {
   return JSON.parse(JSON.stringify(payload));

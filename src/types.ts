@@ -54,6 +54,8 @@ export interface TranslationDebugInfo {
     translationMode: string;
     targetLanguage: string;
     context?: TranslationContext;
+    messageStrategy?: "system-user" | "user-only";
+    fallbackReason?: string;
     body: Record<string, unknown>;
   };
   response?: {
